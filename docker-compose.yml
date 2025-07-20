@@ -1,0 +1,104 @@
+
+
+services:
+  nginx:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/var/www
+    environment:
+      - DB_PORT=5432 
+      - DB_HOST=postgres  
+    ports:
+      - "8080:80"
+    depends_on:
+      - php-fpm
+      - node
+    networks:
+      - backend
+
+  php-fpm:
+    build:
+      context: ./docker/php-fpm
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/var/www
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    environment:
+      - DB_PORT=5432
+      - DB_HOST=postgres
+      - REDIS_PORT=6379
+      - REDIS_HOST=redis
+    depends_on:
+      - postgres  
+    networks:
+      - backend
+
+  php-cli:
+    build:
+      context: ./
+      dockerfile: docker/php-cli.docker
+    volumes:
+      - ./:/var/www
+    environment:
+      - DB_PORT=5432
+      - DB_HOST=postgres
+      - COMPOSER_MEMORY_LIMIT=-1
+    depends_on:
+      - postgres
+    tty: true
+    networks:
+      - backend
+
+  postgres:  
+    image: postgres:15-alpine
+    container_name: postgres
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  
+    environment:
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_USER=user
+      - POSTGRES_DB=Zg
+    ports:
+      - "5433:5432"
+    networks:
+      - backend
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8085:80"
+    depends_on:
+      - postgres
+    networks:
+      - backend
+
+  node:
+    image: node:24-alpine
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/var/www
+    working_dir: /var/www
+    tty: true
+    networks:
+      - backend
+
+volumes:
+  postgres_data:  
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
